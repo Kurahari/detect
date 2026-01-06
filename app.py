@@ -11,7 +11,7 @@ KEY = st.secrets["SUPABASE_KEY"]
 supabase = create_client(URL, KEY)
 
 # Load your custom model
-model = YOLO("crab_model.pt") 
+model = YOLO("best.pt") 
 
 # --- MOBILE UI SETUP ---
 st.set_page_config(page_title="Premolt Tracker", layout="centered")
@@ -67,3 +67,4 @@ if uploaded_file:
         video_placeholder.image(annotated_frame, channels="BGR", use_container_width=True)
 
     cap.release()
+
