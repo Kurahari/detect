@@ -1,80 +1,69 @@
 import streamlit as st
 import cv2
 import tempfile
+import numpy as np
 from ultralytics import YOLO
 from supabase import create_client
-import time
 
-# --- SETUP ---
-# Replace with your Supabase credentials
-URL = "https://jqcuidwpxrrlhweuyguu.supabase.co"
-KEY = "sb_publishable_SfTyHylwU2HTTRGFOPVByQ_RAobUn4r"
+# --- CREDENTIALS ---
+URL = st.secrets["SUPABASE_URL"]
+KEY = st.secrets["SUPABASE_KEY"]
 supabase = create_client(URL, KEY)
 
-# Load your custom model (ensure 'crab_model.pt' is in the same folder)
-model = YOLO("best.pt") 
+# Load your custom model
+model = YOLO("crab_model.pt") 
 
-st.set_page_config(page_title="Crab Detection Dashboard", layout="wide")
-st.title("🦀 Crab & Premolt Detection")
+# --- MOBILE UI SETUP ---
+st.set_page_config(page_title="Premolt Tracker", layout="centered")
 
-# --- SIDEBAR ---
-st.sidebar.header("Configuration")
-conf_threshold = st.sidebar.slider("Confidence Threshold", 0.0, 1.0, 0.5)
-# Specify your class IDs (e.g., 0: Crab, 1: Premolt)
-target_classes = [0, 1] 
+# Custom CSS to make the metrics look better on mobile
+st.markdown("""
+    <style>
+    [data-testid="stMetricValue"] { font-size: 40px; color: #2ecc71; }
+    .stApp { background-color: #f8f9fa; }
+    </style>
+    """, unsafe_allow_html=True)
 
-# --- VIDEO UPLOAD ---
-uploaded_file = st.sidebar.file_uploader("Upload a Video of Crabs", type=["mp4", "mov", "avi"])
+st.title("🦀 Premolt Monitor")
 
-# --- MAIN INTERFACE ---
-col1, col2 = st.columns([2, 1])
+# File uploader (Simplified for mobile)
+uploaded_file = st.file_uploader("Tap to Upload Video", type=["mp4", "mov", "avi"])
 
-with col1:
-    st.subheader("Live Feed")
-    video_placeholder = st.empty()  # Where the frames will appear
-
-with col2:
-    st.subheader("Current Statistics")
-    crab_metric = st.empty()
-    premolt_metric = st.empty()
-
-if uploaded_file is not None:
-    # Save the uploaded file to a temporary location
+if uploaded_file:
     tfile = tempfile.NamedTemporaryFile(delete=False)
     tfile.write(uploaded_file.read())
-    
     cap = cv2.VideoCapture(tfile.name)
     
+    # Large metric for mobile visibility
+    metric_placeholder = st.empty()
+    video_placeholder = st.empty()
+
     while cap.isOpened():
         ret, frame = cap.read()
-        if not ret:
-            break
+        if not ret: break
 
-        # 1. Run Custom YOLO Inference
-        results = model.predict(frame, conf=conf_threshold, classes=target_classes)
+        # 1. Run Detection (assuming class 1 is Premolt)
+        # Change 'classes=[1]' to the index of your premolt class
+        results = model.predict(frame, conf=0.5, classes=[1], verbose=False)
         
-        # 2. Extract Counts
-        # Assuming Class 0 = Crab, Class 1 = Premolt
-        counts = results[0].boxes.cls.tolist()
-        num_crabs = counts.count(0)
-        num_premolt = counts.count(1)
+        premolt_count = len(results[0].boxes)
 
-        # 3. Update Supabase (Public Access)
+        # 2. Custom Drawing (Green Boxes, No Labels)
+        annotated_frame = frame.copy()
+        for box in results[0].boxes:
+            # Get coordinates
+            x1, y1, x2, y2 = map(int, box.xyxy[0])
+            # Draw Green Box (BGR: 0, 255, 0)
+            cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (0, 255, 0), 3)
+
+        # 3. Update Public Dashboard
         try:
-            supabase.table("counts").upsert({"label": "crab_count", "value": num_crabs}).execute()
-            supabase.table("counts").upsert({"label": "premolt_count", "value": num_premolt}).execute()
-        except Exception as e:
-            pass # Ignore DB errors to keep video smooth
+            supabase.table("counts").upsert({"label": "premolt_now", "value": premolt_count}).execute()
+        except:
+            pass
 
-        # 4. Draw Bounding Boxes
-        annotated_frame = results[0].plot()
-        
-        # 5. Display on Web
+        # 4. Display
+        metric_placeholder.metric("Premolts Detected", premolt_count)
         video_placeholder.image(annotated_frame, channels="BGR", use_container_width=True)
-        crab_metric.metric("Total Crabs", num_crabs)
-        premolt_metric.metric("Premolt Detected", num_premolt)
 
     cap.release()
-    st.success("Processing Complete!")
-else:
-    st.info("Please upload a video file in the sidebar to begin detection.")
