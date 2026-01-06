@@ -1,0 +1,4 @@
+ultralytics
+supabase
+streamlit
+opencv-python-headless
