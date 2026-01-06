@@ -1,4 +1,4 @@
-ultralytics
-supabase
-streamlit
+ultralytics>=8.3.0
 opencv-python-headless
+streamlit>=1.35.0
+supabase
