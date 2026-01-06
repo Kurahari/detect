@@ -5,8 +5,8 @@ import time
 st.set_page_config(page_title="Live Counter", page_icon="📊")
 
 # Setup Supabase
-URL = st.secrets["SUPABASE_URL"]
-KEY = st.secrets["SUPABASE_KEY"]
+URL = st.secrets["https://jqcuidwpxrrlhweuyguu.supabase.co"]
+KEY = st.secrets["sb_publishable_SfTyHylwU2HTTRGFOPVByQ_RAobUn4r"]
 supabase = create_client(URL, KEY)
 
 st.title("🛰️ Real-Time Object Detection Dashboard")
